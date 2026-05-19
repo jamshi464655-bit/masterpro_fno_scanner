@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import pandas_ta as ta
+# പുതിയതും സുരക്ഷിതവുമായ ലൈബ്രറി ഉപയോഗിക്കുന്നു
+import ta as ta_indicators
 
 # Page configuration
 st.set_page_config(page_title="MasterPro F&O Scanner", layout="wide")
 
-# Custom Styling (Dark Premium Theme)
+# Custom Styling
 st.markdown("""
 <style>
     .header {
@@ -43,7 +44,6 @@ st.markdown('<div class="header"><h1>Master Pro F&O Scanner</h1><p>NSE Futures &
 st.sidebar.header("⚙️ Scanner Settings")
 tf_choice = st.sidebar.selectbox("Select Timeframe", ["15m", "1h", "1d"], index=0)
 
-# ടൈംഫ്രെയിം അനുസരിച്ച് ആവശ്യമായ ഡാറ്റാ പിരീഡ് സെറ്റ് ചെയ്യുന്നു
 period_map = {"15m": "5d", "1h": "20d", "1d": "60d"}
 data_period = period_map[tf_choice]
 
@@ -92,20 +92,25 @@ for i, sym in enumerate(symbols_ns):
         if df.empty or len(df) < 55:
             continue
             
-        # Indicators
-        df['EMA8'] = ta.ema(df['Close'], length=8)
-        df['EMA13'] = ta.ema(df['Close'], length=13)
-        df['EMA21'] = ta.ema(df['Close'], length=21)
-        df['EMA55'] = ta.ema(df['Close'], length=55)
-        df['VWAP'] = ta.vwap(df['High'], df['Low'], df['Close'], df['Volume'])
-        df['RSI'] = ta.rsi(df['Close'], length=14)
+        # 1. EMA Calculations (using ta library)
+        df['EMA8'] = ta_indicators.trend.ema_indicator(df['Close'], window=8)
+        df['EMA13'] = ta_indicators.trend.ema_indicator(df['Close'], window=13)
+        df['EMA21'] = ta_indicators.trend.ema_indicator(df['Close'], window=21)
+        df['EMA55'] = ta_indicators.trend.ema_indicator(df['Close'], window=55)
         
-        macd_df = ta.macd(df['Close'], fast=12, slow=26, signal=9)
-        df['MACD'] = macd_df['MACD_12_26_9']
-        df['MACD_Signal'] = macd_df['MACDs_12_26_9']
+        # 2. VWAP Calculation (Manual fallback for stability)
+        typical_price = (df['High'] + df['Low'] + df['Close']) / 3
+        df['VWAP'] = (typical_price * df['Volume']).cumsum() / df['Volume'].cumsum()
         
-        adx_df = ta.adx(df['High'], df['Low'], df['Close'], length=14)
-        df['ADX'] = adx_df['ADX_14']
+        # 3. RSI Calculation
+        df['RSI'] = ta_indicators.momentum.rsi(df['Close'], window=14)
+        
+        # 4. MACD Calculation
+        df['MACD'] = ta_indicators.trend.macd(df['Close'], window_fast=12, window_slow=26)
+        df['MACD_Signal'] = ta_indicators.trend.macd_signal(df['Close'], window_fast=12, window_slow=26, window_sign=9)
+        
+        # 5. ADX Calculation
+        df['ADX'] = ta_indicators.trend.adx(df['High'], df['Low'], df['Close'], window=14)
         
         latest = df.iloc[-1]
         
@@ -114,7 +119,6 @@ for i, sym in enumerate(symbols_ns):
         adx_val = float(latest['ADX'])
         vwap_val = float(latest['VWAP'])
         
-        # Safe Conversion for conditions
         ema8_val = float(latest['EMA8'])
         ema13_val = float(latest['EMA13'])
         ema21_val = float(latest['EMA21'])

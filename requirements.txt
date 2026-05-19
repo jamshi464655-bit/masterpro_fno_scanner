@@ -1,3 +1,5 @@
-streamlit
-pandas
-yfinance
+streamlit>=1.30.0
+pandas>=2.0.0
+yfinance>=0.2.35
+pandas_ta
+scipy>=1.10.0
